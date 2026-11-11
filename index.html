@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Дело № 1871: Змейка</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%; overflow: hidden;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: #0d1017; color: #e8e8ea;
+    user-select: none; -webkit-user-select: none;
+  }
+  #game-container {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; padding: 12px;
+  }
+  #hud {
+    width: 100%; max-width: 500px;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 12px; margin-bottom: 8px;
+    color: #8a8f9c; font-size: 13px; letter-spacing: 1.5px;
+  }
+  #hud .score-value { color: #e8b04b; font-weight: 700; font-size: 15px; }
+  #hud .hint { font-size: 11px; opacity: .6; text-transform: lowercase; letter-spacing: 0; }
+  #canvas {
+    display: block; background: #0d1017;
+    border-radius: 12px; border: 1px solid #232a38;
+    touch-action: none;
+  }
+  .screen {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: rgba(13, 16, 23, 0.95);
+    backdrop-filter: blur(8px);
+    z-index: 10; padding: 24px; text-align: center;
+  }
+  .screen.hidden { display: none; }
+  .badge {
+    display: inline-block; padding: 6px 14px;
+    border: 1px solid #e8b04b; color: #e8b04b;
+    border-radius: 20px; font-size: 11px;
+    letter-spacing: 2px; margin-bottom: 16px;
+  }
+  h1 { font-size: 32px; line-height: 1.1; margin-bottom: 12px; }
+  h1 span { color: #e8b04b; }
+  .subtitle {
+    color: #8a8f9c; margin-bottom: 32px;
+    font-size: 15px; max-width: 320px; line-height: 1.5;
+  }
+  .btn {
+    display: inline-block; padding: 14px 32px;
+    border: none; border-radius: 12px;
+    font-size: 16px; font-weight: 600; cursor: pointer;
+    font-family: inherit; background: #e8b04b; color: #000;
+    transition: transform .1s;
+  }
+  .btn:active { transform: scale(0.97); }
+  #factOverlay {
+    position: fixed; inset: 0; display: flex;
+    align-items: center; justify-content: center;
+    padding: 24px; z-index: 20;
+    background: rgba(13, 16, 23, 0.9);
+    backdrop-filter: blur(10px);
+  }
+  #factOverlay.hidden { display: none; }
+  .fact-card {
+    background: #161b26; border: 1px solid #232a38;
+    border-radius: 20px; padding: 28px 24px;
+    max-width: 420px; width: 100%;
+    animation: slideUp .3s ease;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: none; }
+  }
+  .fact-num {
+    display: inline-block; padding: 4px 10px;
+    background: rgba(232, 176, 75, 0.15); color: #e8b04b;
+    border-radius: 6px; font-size: 11px;
+    letter-spacing: 2px; margin-bottom: 16px; font-weight: 700;
+  }
+  .fact-text { font-size: 18px; line-height: 1.5; margin-bottom: 24px; }
+  #allFacts {
+    max-width: 420px; width: 100%; max-height: 50vh;
+    overflow-y: auto; text-align: left;
+    margin-bottom: 24px; padding-right: 8px;
+  }
+  .all-fact {
+    padding: 12px 14px; background: #161b26;
+    border-radius: 10px; margin-bottom: 8px;
+    font-size: 14px; line-height: 1.4; color: #c8ccd4;
+    border-left: 3px solid #e8b04b;
+  }
+  .all-fact b { color: #e8b04b; margin-right: 6px; }
+</style>
+</head>
+<body>
+<div id="game-container">
+  <div id="hud">
+    <div>ФАКТОВ: <span class="score-value" id="scoreDisplay">0 / 10</span></div>
+    <div class="hint">свайп для движения</div>
+  </div>
+  <canvas id="canvas"></canvas>
+
+  <div id="startScreen" class="screen">
+    <div class="badge">ДЕЛО № 1871</div>
+    <h1>Змейка<br><span>Андреева</span></h1>
+    <p class="subtitle">Собирай яблоки — каждое откроет один редкий факт о писателе. Собери все 10.</p>
+    <button class="btn" id="startBtn">Начать</button>
+  </div>
+
+  <div id="winScreen" class="screen hidden">
+    <div class="badge">ДЕЛО РАСКРЫТО</div>
+    <h1>Все <span>10 фактов</span><br>собраны</h1>
+    <div id="allFacts"></div>
+    <button class="btn" id="restartBtn">Ещё раз</button>
+  </div>
+
+  <div id="loseScreen" class="screen hidden">
+    <div class="badge">ДЕЛО ПРОВАЛЕНО</div>
+    <h1>Змейка<br><span>разбилась</span></h1>
+    <p class="subtitle">Собрано фактов: <span id="loseScore" style="color:#e8b04b;font-weight:700;">0</span> / 10</p>
+    <button class="btn" id="retryBtn">Ещё раз</button>
+  </div>
+
+  <div id="factOverlay" class="hidden">
+    <div class="fact-card">
+      <div class="fact-num" id="factNum">ФАКТ 1 / 10</div>
+      <p class="fact-text" id="factText"></p>
+      <button class="btn" id="continueBtn" style="width:100%;">Продолжить</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const FACTS = [
+  "Первый рассказ — «Баргамот и Гараська» (1898) — вышел с подачи Владимира Короленко, который разглядел в молодом Андрееве талант.",
+  "Он учился на юриста сразу в двух университетах — Петербургском и Московском — но адвокатом почти не работал.",
+  "Пьесу «Жизнь человека» (1907) поставил Всеволод Мейерхольд — премьера вызвала громкий скандал и споры.",
+  "Рассказ «Красный смех» (1904) написан под впечатлением от ужасов русско-японской войны — это антивоенный манифест.",
+  "Он был дважды женат: на Александре Велигорской и Анне Денисевич. От двух браков у него остались дети.",
+  "Первая жена Александра умерла в 1906 году от послеродовой горячки — Андреев тяжело переживал эту потерю.",
+  "В эмиграции он жил в финской деревне Нейвола, где умер в 1919 году и был похоронен.",
+  "Он сам рисовал иллюстрации к своим книгам — детская страсть к рисованию не прошла.",
+  "В гимназии он подрабатывал репетиторством и рисованием портретов на заказ, чтобы помочь семье.",
+  "В начале XX века он был одним из самых высокооплачиваемых писателей России — его гонорары исчислялись тысячами."
+];
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const GRID = 20;
+let cell = 20;
+const $ = id => document.getElementById(id);
+
+let snake, dir, nextDir, apple, collected, gameState, factIndex, factOrder;
+let loopId = null;
+
+function initGame() {
+  snake = [{x: 10, y: 10}, {x: 9, y: 10}, {x: 8, y: 10}];
+  dir = {x: 1, y: 0};
+  nextDir = {x: 1, y: 0};
+  collected = 0;
+  factIndex = 0;
+  gameState = 'playing';
+  factOrder = shuffle([...FACTS.keys()]);
+  $('scoreDisplay').textContent = '0 / 10';
+  spawnApple();
+  draw();
+  if (loopId) clearInterval(loopId);
+  loopId = setInterval(tick, 170);
+}
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function spawnApple() {
+  const empty = [];
+  for (let x = 0; x < GRID; x++)
+    for (let y = 0; y < GRID; y++)
+      if (!snake.some(s => s.x === x && s.y === y)) empty.push({x, y});
+  if (!empty.length) return;
+  apple = empty[Math.floor(Math.random() * empty.length)];
+}
+
+function tick() {
+  if (gameState !== 'playing') return;
+  dir = nextDir;
+  const head = snake[0];
+  const newHead = {x: head.x + dir.x, y: head.y + dir.y};
+
+  if (newHead.x < 0 || newHead.x >= GRID || newHead.y < 0 || newHead.y >= GRID) return gameOver();
+  if (snake.some(s => s.x === newHead.x && s.y === newHead.y)) return gameOver();
+
+  snake.unshift(newHead);
+
+  if (newHead.x === apple.x && newHead.y === apple.y) {
+    collected++;
+    $('scoreDisplay').textContent = collected + ' / 10';
+    showFact(factOrder[factIndex]);
+    factIndex++;
+    gameState = 'paused';
+    draw();
+  } else {
+    snake.pop();
+    draw();
+  }
+}
+
+function showFact(idx) {
+  $('factNum').textContent = `ФАКТ ${factIndex + 1} / 10`;
+  $('factText').textContent = FACTS[idx];
+  $('factOverlay').classList.remove('hidden');
+}
+
+function continueAfterFact() {
+  $('factOverlay').classList.add('hidden');
+  if (collected >= 10) return showWin();
+  spawnApple();
+  gameState = 'playing';
+  draw();
+}
+
+function gameOver() {
+  gameState = 'lost';
+  if (loopId) { clearInterval(loopId); loopId = null; }
+  $('loseScore').textContent = collected;
+  $('loseScreen').classList.remove('hidden');
+}
+
+function showWin() {
+  gameState = 'won';
+  if (loopId) { clearInterval(loopId); loopId = null; }
+  const container = $('allFacts');
+  container.innerHTML = '';
+  FACTS.forEach((f, i) => {
+    const div = document.createElement('div');
+    div.className = 'all-fact';
+    div.innerHTML = `<b>${i + 1}.</b>${escapeHtml(f)}`;
+    container.appendChild(div);
+  });
+  $('winScreen').classList.remove('hidden');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function draw() {
+  const size = canvas.width / (window.devicePixelRatio || 1);
+  ctx.fillStyle = '#0d1017';
+  ctx.fillRect(0, 0, size, size);
+
+  ctx.strokeStyle = '#161b26';
+  ctx.lineWidth = 1;
+  for (let i = 1; i < GRID; i++) {
+    ctx.beginPath(); ctx.moveTo(i * cell, 0); ctx.lineTo(i * cell, size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i * cell); ctx.lineTo(size, i * cell); ctx.stroke();
+  }
+
+  if (apple && gameState !== 'won') {
+    const ax = apple.x * cell + cell * 0.15;
+    const ay = apple.y * cell + cell * 0.15;
+    const as = cell * 0.7;
+    ctx.fillStyle = '#e8b04b';
+    ctx.beginPath(); ctx.arc(ax + as/2, ay + as/2, as/2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.beginPath(); ctx.arc(ax + as*0.35, ay + as*0.35, as*0.12, 0, Math.PI * 2); ctx.fill();
+  }
+
+  snake.forEach((s, i) => {
+    ctx.fillStyle = i === 0 ? '#3ddc84' : '#2a9d5f';
+    const pad = i === 0 ? 1 : 2;
+    ctx.beginPath();
+    ctx.roundRect(s.x * cell + pad, s.y * cell + pad, cell - pad * 2, cell - pad * 2, cell * 0.2);
+    ctx.fill();
+  });
+}
+
+function resize() {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const size = Math.min(vw - 24, vh - 100);
+  const dpr = window.devicePixelRatio || 1;
+  canvas.style.width = size + 'px';
+  canvas.style.height = size + 'px';
+  canvas.width = size * dpr;
+  canvas.height = size * dpr;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(dpr, dpr);
+  cell = size / GRID;
+  if (snake) draw();
+}
+
+let tX = 0, tY = 0;
+canvas.addEventListener('touchstart', e => {
+  if (gameState !== 'playing') return;
+  tX = e.touches[0].clientX; tY = e.touches[0].clientY;
+  e.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => {
+  if (gameState !== 'playing') return;
+  const dx = e.changedTouches[0].clientX - tX;
+  const dy = e.changedTouches[0].clientY - tY;
+  if (Math.abs(dx) < 20 && Math.abs(dy) < 20) return;
+  if (Math.abs(dx) > Math.abs(dy)) setDir(dx > 0 ? 'right' : 'left');
+  else setDir(dy > 0 ? 'down' : 'up');
+  e.preventDefault();
+}, { passive: false });
+
+document.addEventListener('keydown', e => {
+  if (gameState !== 'playing') return;
+  const map = { ArrowUp:'up', ArrowDown:'down', ArrowLeft:'left', ArrowRight:'right',
+                w:'up', s:'down', a:'left', d:'right',
+                ц:'up', ы:'down', ф:'left', в:'right' };
+  if (map[e.key]) { setDir(map[e.key]); e.preventDefault(); }
+});
+
+function setDir(d) {
+  const map = { up:{x:0,y:-1}, down:{x:0,y:1}, left:{x:-1,y:0}, right:{x:1,y:0} };
+  const nd = map[d];
+  if (nd.x === -dir.x && nd.y === -dir.y) return;
+  nextDir = nd;
+}
+
+$('startBtn').addEventListener('click', () => {
+  $('startScreen').classList.add('hidden');
+  initGame();
+});
+$('continueBtn').addEventListener('click', continueAfterFact);
+$('restartBtn').addEventListener('click', () => {
+  $('winScreen').classList.add('hidden'); initGame();
+});
+$('retryBtn').addEventListener('click', () => {
+  $('loseScreen').classList.add('hidden'); initGame();
+});
+
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 100));
+resize();5
+</script>
+</body>
+</html>
